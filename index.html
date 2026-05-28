@@ -1,0 +1,119 @@
+<<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>臺灣遊蕩犬分析 - 李涵恩</title>
+    <!-- 引入 Leaflet 地圖庫與 Chart.js -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js"></script>
+    <style>
+        :root { --main-orange: #d35400; --soft-bg: #fdfaf6; --text-dark: #2c3e50; }
+        body { font-family: 'Segoe UI', 'Microsoft JhengHei', sans-serif; background: var(--soft-bg); color: var(--text-dark); margin: 0; padding: 0; }
+        .container { max-width: 1000px; margin: 40px auto; background: #fff; padding: 40px; border-radius: 20px; box-shadow: 0 10px 30px rgba(0,0,0,0.05); }
+        h1 { color: var(--main-orange); text-align: center; font-size: 2.5em; margin-bottom: 10px; }
+        .author { text-align: center; color: #95a5a6; margin-bottom: 30px; }
+        .preface { line-height: 1.8; background: #fff3e0; padding: 25px; border-radius: 15px; border-right: 6px solid var(--main-orange); margin-bottom: 40px; }
+        
+        /* 地圖容器樣式 */
+        #map { height: 500px; width: 100%; border-radius: 15px; margin: 20px 0; background: #e0e0e0; z-index: 1; }
+        .info-panel { background: #fff; padding: 15px; border: 1px solid #ddd; border-radius: 8px; font-size: 14px; }
+        
+        .analysis-text { font-size: 0.95em; color: #555; background: #f8f9fa; padding: 15px; border-radius: 10px; margin: 10px 0 40px 0; }
+        .chart-wrap { height: 450px; margin-bottom: 50px; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h1>臺灣遊蕩犬分析</h1>
+    <div class="author">作者：李涵恩</div>
+
+    <div class="preface">
+        <strong>前言：</strong><br>
+        本網頁透過視覺化呈現 113 年全臺遊蕩犬分布調查數據，具有高度社會價值。隨著都市化與生態平衡議題並重，了解遊蕩犬分布（如臺南、嘉義的高密度區）能協助精準投放結育資源，預防人犬衝突。本數據旨在引發大眾對動物福利與公共管理的理性討論，推動更完善的動保政策。資料來源參考自農業部「動物保護資訊網」 [1, 2]。
+    </div>
+
+    <h2>一、全臺遊蕩犬分布熱點圖</h2>
+    <p>（點擊地圖標記可顯示該縣市詳細數據）</p>
+    <div id="map"></div>
+    <div class="analysis-text">
+        <strong>關鍵數字分析：</strong>
+        根據調查，全國總計有 141,584 隻遊蕩犬 [1]。南部地區為主要熱點，**臺南市 (19,990 隻)** 與 **嘉義縣 (16,944 隻)** 是全國唯二突破 1.5 萬隻的縣市 [1, 3]，亟需重點資源挹注。
+    </div>
+
+    <h2>二、每百人遊蕩犬數排行 (密度分析)</h2>
+    <div class="chart-wrap">
+        <canvas id="ratioChart"></canvas>
+    </div>
+    <div class="analysis-text">
+        <strong>關鍵數字分析：</strong>
+        密度最高者為 **臺東縣 (4.04)**，遠超全國平均，反映出地廣人稀處的管理挑戰 [1, 3]。相較之下，**臺北市 (0.08)** 密度全國最低，顯示高度都市化地區與遊蕩犬族群量成反比關係。
+    </div>
+</div>
+
+<script>
+    // 來源資料 [1, 4]
+    const dogData = [
+        {name: "臺南市", count: 19990, ratio: 1.07, lat: 22.9997, lng: 120.2270},
+        {name: "嘉義縣", count: 16944, ratio: 3.50, lat: 23.4518, lng: 120.2559},
+        {name: "高雄市", count: 10200, ratio: 0.37, lat: 22.6273, lng: 120.3014},
+        {name: "屏東縣", count: 10024, ratio: 1.26, lat: 22.6690, lng: 120.4860},
+        {name: "臺東縣", count: 8551, ratio: 4.04, lat: 22.7583, lng: 121.1444},
+        {name: "臺北市", count: 1908, ratio: 0.08, lat: 25.0330, lng: 121.5654},
+        {name: "花蓮縣", count: 6983, ratio: 2.20, lat: 23.9871, lng: 121.6016},
+        {name: "南投縣", count: 9644, ratio: 2.02, lat: 23.9100, lng: 120.6859},
+        {name: "新北市", count: 9982, ratio: 0.25, lat: 25.0123, lng: 121.4657},
+        {name: "彰化縣", count: 9313, ratio: 0.75, lat: 24.0518, lng: 120.5161}
+        // ... 其他縣市可依此格式類推 [1]
+    ];
+
+    // 初始化地圖
+    const map = L.map('map').setView([23.6, 120.9], 7);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+
+    // 根據數量決定標記顏色
+    function getColor(count) {
+        return count > 15000 ? '#d35400' :
+               count > 8000  ? '#e67e22' :
+                               '#f39c12';
+    }
+
+    // 在地圖上放置圓形標記
+    dogData.forEach(city => {
+        L.circleMarker([city.lat, city.lng], {
+            radius: Math.sqrt(city.count) / 4,
+            fillColor: getColor(city.count),
+            color: "#fff",
+            weight: 1,
+            fillOpacity: 0.8
+        }).addTo(map).bindPopup(`<b>${city.name}</b><br>遊蕩犬數：${city.count} 隻<br>每百人數：${city.ratio}`);
+    });
+
+    // 互動式橫條圖 [1]
+    const sortedData = [...dogData].sort((a,b) => b.ratio - a.ratio);
+    new Chart(document.getElementById('ratioChart'), {
+        type: 'bar',
+        data: {
+            labels: sortedData.map(d => d.name),
+            datasets: [{
+                label: '每百人遊蕩犬數',
+                data: sortedData.map(d => d.ratio),
+                backgroundColor: sortedData.map(d => getColor(d.count))
+            }]
+        },
+        options: {
+            indexAxis: 'y',
+            maintainAspectRatio: false,
+            plugins: { legend: { display: false } }
+        }
+    });
+
+    // GSAP 載入動畫
+    gsap.from(".container", {duration: 1, y: 50, opacity: 0, ease: "power2.out"});
+</script>
+
+</body>
+</html>
